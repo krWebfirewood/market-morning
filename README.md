@@ -4,8 +4,8 @@
 
 - GitHub 저장소: `market-morning`
 - 목표 배포 주소: [market-morning.vercel.app](https://market-morning.vercel.app)
-- 현재 단계: Milestone 1 정적 UI 프로토타입
-- 데이터: 단일 정규화 모의 스냅샷, 외부 API 미연결
+- 현재 단계: Milestone 2 완료, Milestone 3 FRED 시장 데이터 연결
+- 데이터: 주요 지표는 FRED 실데이터, 미지원 지표·일정·공시는 명시적인 대체 모의 데이터
 
 ## 구현된 기능
 
@@ -17,6 +17,7 @@
 - AI 분석용 Markdown 복사·다운로드 및 정규화 JSON 다운로드
 - 기본 PWA manifest
 - 계산, 누락 데이터, Markdown 내보내기 단위 테스트
+- 서버 측 FRED 어댑터, 1시간 재검증, 개별 지표 실패 처리
 
 과거 5개·20개 세션 내보내기는 스냅샷 저장 기능이 추가되는 후속 마일스톤까지 비활성화되어 있습니다.
 
@@ -48,13 +49,12 @@ GitHub의 `market-morning` 저장소를 Vercel에 가져온 뒤 프로젝트 이
 
 ## 데이터 교체 위치
 
-화면 전체 데이터는 `src/data/mock-snapshot.ts`의 단일 `MorningMarketSnapshot`에서 가져옵니다. 후속 마일스톤에서는 이 객체를 검증된 실제 스냅샷으로 교체하면 되며 UI 컴포넌트는 특정 제공자 응답 구조에 의존하지 않습니다.
+`src/lib/providers/fred.ts`가 FRED CSV 관측값을 내부 `MorningMarketSnapshot` 형식으로 정규화합니다. `src/lib/snapshot/get-snapshot.ts`에서 병렬 수집과 부분 실패 처리를 수행하며, 지원하지 않는 지표는 `src/data/mock-snapshot.ts`의 값을 대체 데이터로 사용합니다.
 
 ## 아직 포함하지 않은 범위
 
-- 외부 데이터 제공자 및 API 어댑터
 - 예약 수집과 과거 스냅샷 저장
 - 인증과 데이터베이스
 - AI API 연결
 - 실제 투자 추천
-- Vercel 프로덕션 배포
+- ECOS·DART 실제 데이터 연결

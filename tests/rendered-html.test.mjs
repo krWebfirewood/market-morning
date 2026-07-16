@@ -11,7 +11,7 @@ test("Market Morning 정적 HTML이 한글로 생성된다", async () => {
   assert.match(html, /<html lang="ko"/i);
   assert.match(html, /<title>Market Morning \| 출근길 시장 브리핑<\/title>/i);
   assert.match(html, /출근길/);
-  assert.match(html, /정적 프로토타입/);
+  assert.match(html, /FRED 실데이터/);
   assert.match(html, /아침 요약/);
   assert.match(html, /투자 조언/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/);

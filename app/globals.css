@@ -53,6 +53,8 @@ nav a:hover { color: var(--ink); }
 .hero-copy { position: relative; z-index: 1; padding: 80px 0 64px; }
 .mock-label { display: inline-flex; align-items: center; gap: 9px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); background: var(--surface); font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
 .mock-label span { width: 7px; height: 7px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 4px color-mix(in srgb, var(--warning) 15%, transparent); }
+.live-label span { background: var(--up); box-shadow: 0 0 0 4px color-mix(in srgb, var(--up) 15%, transparent); }
+.data-notice { margin: 24px 0 0; padding: 14px 18px; border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--border)); border-radius: 14px; background: color-mix(in srgb, var(--warning) 8%, var(--surface)); color: var(--warning); font-size: .78rem; line-height: 1.5; }
 .date-line { margin: 40px 0 10px; color: var(--accent); font-family: var(--font-geist-mono), monospace; font-size: .82rem; text-transform: uppercase; letter-spacing: .12em; }
 h1 { margin: 0; max-width: 760px; font-family: Georgia, "Times New Roman", serif; font-size: clamp(3.4rem, 8vw, 6.9rem); line-height: .88; letter-spacing: -.065em; font-weight: 500; }
 .hero-subtitle { max-width: 570px; margin: 30px 0 0; color: var(--muted); font-size: clamp(1rem, 2vw, 1.22rem); line-height: 1.65; }
