@@ -5,6 +5,8 @@ import { snapshotToMarkdown } from "../src/lib/export/markdown";
 import { mockSnapshot } from "../src/data/mock-snapshot";
 import { isMorningMarketSnapshot } from "../src/lib/validation/snapshot";
 import { applyFredSeries } from "../src/lib/providers/fred";
+import { businessDaysSince, isMarketDataStale } from "../src/lib/freshness/business-days";
+import { applyTwelveDataSeries } from "../src/lib/providers/twelve-data";
 
 test("calculates absolute market changes", () => {
   assert.equal(calculateChange(1385.2, 1375.8), 9.4);
@@ -55,4 +57,20 @@ test("FRED 관측값을 정규화된 지표로 변환한다", () => {
   assert.equal(normalized.change, 1);
   assert.equal(normalized.changePercent, 1);
   assert.match(normalized.source, /FRED/);
+});
+
+test("주말을 제외한 영업일 수로 지연 여부를 판정한다", () => {
+  assert.equal(businessDaysSince("2026-07-10", new Date("2026-07-13T12:00:00Z")), 1);
+  assert.equal(isMarketDataStale("2026-07-10", "equity", new Date("2026-07-13T12:00:00Z")), false);
+  assert.equal(isMarketDataStale("2026-07-08", "equity", new Date("2026-07-13T12:00:00Z")), true);
+});
+
+test("Twelve Data 관측값을 제공자 독립 지표로 변환한다", () => {
+  const base = mockSnapshot.indicators.find((item) => item.id === "gold")!;
+  const normalized = applyTwelveDataSeries(base, "XAU/USD", [
+    { date: "2026-07-14", value: 2400 },
+    { date: "2026-07-15", value: 2424 },
+  ]);
+  assert.equal(normalized.changePercent, 1);
+  assert.match(normalized.source, /Twelve Data/);
 });

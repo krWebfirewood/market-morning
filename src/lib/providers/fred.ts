@@ -1,4 +1,5 @@
 import type { MarketIndicator, TimeSeriesPoint } from "../../types/market";
+import { isMarketDataStale } from "../freshness/business-days";
 
 const FRED_GRAPH_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv";
 
@@ -72,9 +73,7 @@ export function applyFredSeries(
   const changePercent = base.category === "rate" || base.id === "spread"
     ? null
     : Number(((change / previous.value) * 100).toFixed(2));
-  const ageHours = (Date.now() - new Date(`${current.date}T23:59:59Z`).getTime()) / 3_600_000;
-  const staleLimit = base.category === "fx" ? 168 : base.category === "rate" ? 96 : 72;
-  const isStale = ageHours > staleLimit;
+  const isStale = isMarketDataStale(current.date, base.category);
   const interpretation = base.category === "rate"
     ? `${base.shortName} 금리가 직전 관측값보다 ${change >= 0 ? "상승" : "하락"}했습니다.`
     : base.category === "fx"

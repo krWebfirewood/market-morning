@@ -4,8 +4,8 @@
 
 - GitHub 저장소: `market-morning`
 - 목표 배포 주소: [market-morning.vercel.app](https://market-morning.vercel.app)
-- 현재 단계: Milestone 2 완료, Milestone 3 FRED 시장 데이터 연결
-- 데이터: 주요 지표는 FRED 실데이터, 미지원 지표·일정·공시는 명시적인 대체 모의 데이터
+- 현재 단계: Milestone 2 완료, Milestone 3 시장 데이터 어댑터 완성
+- 데이터: 주요 지표는 FRED 실데이터, KOSPI·KOSDAQ·금·구리는 Twelve Data 키가 있으면 실데이터, 일정·공시는 명시적인 대체 모의 데이터
 
 ## 구현된 기능
 
@@ -18,6 +18,7 @@
 - 기본 PWA manifest
 - 계산, 누락 데이터, Markdown 내보내기 단위 테스트
 - 서버 측 FRED 어댑터, 1시간 재검증, 개별 지표 실패 처리
+- Twelve Data 어댑터와 주말 제외 영업일 기준 지연 판정
 
 과거 5개·20개 세션 내보내기는 스냅샷 저장 기능이 추가되는 후속 마일스톤까지 비활성화되어 있습니다.
 
@@ -47,9 +48,13 @@ npm run build
 
 GitHub의 `market-morning` 저장소를 Vercel에 가져온 뒤 프로젝트 이름을 `market-morning`으로 지정합니다. 프레임워크는 Next.js로 자동 감지되며 별도 빌드 설정은 필요하지 않습니다. 이름을 사용할 수 있다면 기본 주소는 `https://market-morning.vercel.app`이 됩니다.
 
+### Twelve Data 실데이터 설정
+
+[Twelve Data](https://twelvedata.com/)에서 무료 API 키를 발급받아 Vercel 프로젝트의 `TWELVE_DATA_API_KEY` 환경변수로 등록합니다. 키는 코드나 GitHub에 저장하지 않습니다. 기본 심볼은 `.env.example`에 있으며 제공자 검색 결과가 다르면 환경변수로 교체할 수 있습니다.
+
 ## 데이터 교체 위치
 
-`src/lib/providers/fred.ts`가 FRED CSV 관측값을 내부 `MorningMarketSnapshot` 형식으로 정규화합니다. `src/lib/snapshot/get-snapshot.ts`에서 병렬 수집과 부분 실패 처리를 수행하며, 지원하지 않는 지표는 `src/data/mock-snapshot.ts`의 값을 대체 데이터로 사용합니다.
+`src/lib/providers/fred.ts`와 `src/lib/providers/twelve-data.ts`가 외부 관측값을 내부 `MorningMarketSnapshot` 형식으로 정규화합니다. `src/lib/snapshot/get-snapshot.ts`에서 병렬 수집과 부분 실패 처리를 수행하며, 지원하지 않거나 실패한 지표는 `src/data/mock-snapshot.ts`의 값을 대체 데이터로 사용합니다.
 
 ## 아직 포함하지 않은 범위
 

@@ -1,9 +1,11 @@
 import { mockSnapshot } from "../../data/mock-snapshot";
 import type { DataCollectionError, MarketIndicator, MorningMarketSnapshot } from "../../types/market";
 import { applyFredSeries, fetchFredSeries } from "../providers/fred";
+import { applyTwelveDataSeries, fetchTwelveDataSeries } from "../providers/twelve-data";
 import { assertMorningMarketSnapshot } from "../validation/snapshot";
 
 const liveIds = ["sp500", "nasdaq", "dow", "sox", "vix", "us2y", "us10y", "usdkrw", "dxy", "usdjpy", "usdcny", "wti"];
+const supplementalIds = ["kospi", "kosdaq", "gold", "copper"];
 
 function kstNow() {
   const now = new Date(Date.now() + 9 * 60 * 60 * 1000);
@@ -27,19 +29,28 @@ function summary(indicators: MarketIndicator[]) {
 export async function getMorningMarketSnapshot(): Promise<MorningMarketSnapshot> {
   const generatedAt = kstNow();
   const results = await Promise.allSettled(liveIds.map(async (id) => ({ id, ...(await fetchFredSeries(id)) })));
+  const supplementalResults = await Promise.allSettled(supplementalIds.map(async (id) => ({ id, ...(await fetchTwelveDataSeries(id)) })));
   const live = new Map<string, { seriesId: string; points: Awaited<ReturnType<typeof fetchFredSeries>>["points"] }>();
   const errors: DataCollectionError[] = [];
+  const supplemental = new Map<string, { symbol: string; points: Awaited<ReturnType<typeof fetchTwelveDataSeries>>["points"] }>();
 
   results.forEach((result, index) => {
     const id = liveIds[index];
     if (result.status === "fulfilled") live.set(id, result.value);
     else errors.push({ provider: `FRED:${id}`, message: result.reason instanceof Error ? result.reason.message : "알 수 없는 수집 오류", occurredAt: generatedAt });
   });
+  supplementalResults.forEach((result, index) => {
+    const id = supplementalIds[index];
+    if (result.status === "fulfilled") supplemental.set(id, result.value);
+    else errors.push({ provider: `TwelveData:${id}`, message: result.reason instanceof Error ? result.reason.message : "알 수 없는 수집 오류", occurredAt: generatedAt });
+  });
 
   const indicators = mockSnapshot.indicators.map((base) => {
     const data = live.get(base.id);
-    if (!data) return { ...base, isStale: true, status: "stale" as const, source: `${base.source} · 대체 데이터` };
-    return applyFredSeries(base, data.seriesId, data.points);
+    if (data) return applyFredSeries(base, data.seriesId, data.points);
+    const extra = supplemental.get(base.id);
+    if (extra) return applyTwelveDataSeries(base, extra.symbol, extra.points);
+    return { ...base, isStale: true, status: "stale" as const, source: `${base.source} · 대체 데이터` };
   });
 
   const us2y = indicators.find((item) => item.id === "us2y");
