@@ -40,7 +40,11 @@ npm run lint
 npm run build
 ```
 
-`npm test`는 단위 테스트, 프로덕션 빌드, 서버 렌더링 검증을 차례로 수행합니다.
+`npm test`는 단위 테스트, Vercel 호환 프로덕션 빌드, 한글 정적 HTML 검증을 차례로 수행합니다.
+
+## Vercel 배포
+
+GitHub의 `market-morning` 저장소를 Vercel에 가져온 뒤 프로젝트 이름을 `market-morning`으로 지정합니다. 프레임워크는 Next.js로 자동 감지되며 별도 빌드 설정은 필요하지 않습니다. 이름을 사용할 수 있다면 기본 주소는 `https://market-morning.vercel.app`이 됩니다.
 
 ## 데이터 교체 위치
 

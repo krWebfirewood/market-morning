@@ -1,19 +1,14 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-async function render() {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
-  return worker.fetch(new Request("http://localhost/", { headers: { accept: "text/html" } }), {
-    ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) },
-  }, { waitUntil() {}, passThroughOnException() {} });
-}
+test("Market Morning 정적 HTML이 한글로 생성된다", async () => {
+  const html = await readFile(
+    new URL("../.next/server/app/index.html", import.meta.url),
+    "utf8",
+  );
 
-test("server-renders the Market Morning prototype", async () => {
-  const response = await render();
-  assert.equal(response.status, 200);
-  const html = await response.text();
+  assert.match(html, /<html lang="ko"/i);
   assert.match(html, /<title>Market Morning \| 출근길 시장 브리핑<\/title>/i);
   assert.match(html, /출근길/);
   assert.match(html, /정적 프로토타입/);
