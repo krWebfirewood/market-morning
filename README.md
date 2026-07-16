@@ -4,8 +4,8 @@
 
 - GitHub 저장소: `market-morning`
 - 목표 배포 주소: [market-morning.vercel.app](https://market-morning.vercel.app)
-- 현재 단계: Milestone 2 완료, Milestone 3 시장 데이터 어댑터 완성
-- 데이터: 주요 지표는 FRED 실데이터, KOSPI·KOSDAQ·금·구리는 Twelve Data 키가 있으면 실데이터, 일정·공시는 명시적인 대체 모의 데이터
+- 현재 단계: Milestone 4 데이터 어댑터 구현 완료, API 키 등록 진행 중
+- 데이터: 주요 지표는 FRED 실데이터이며, 키가 있으면 Twelve Data·한국은행 ECOS·OpenDART 데이터를 함께 사용합니다. 연결되지 않은 항목은 명시적인 대체 모의 데이터입니다.
 
 ## 구현된 기능
 
@@ -19,6 +19,8 @@
 - 계산, 누락 데이터, Markdown 내보내기 단위 테스트
 - 서버 측 FRED 어댑터, 1시간 재검증, 개별 지표 실패 처리
 - Twelve Data 어댑터와 주말 제외 영업일 기준 지연 판정
+- 한국은행 ECOS 원/달러 환율 어댑터
+- OpenDART 최근 공시 어댑터와 설정 파일 기반 관심 종목
 
 과거 5개·20개 세션 내보내기는 스냅샷 저장 기능이 추가되는 후속 마일스톤까지 비활성화되어 있습니다.
 
@@ -52,9 +54,16 @@ GitHub의 `market-morning` 저장소를 Vercel에 가져온 뒤 프로젝트 이
 
 [Twelve Data](https://twelvedata.com/)에서 무료 API 키를 발급받아 Vercel 프로젝트의 `TWELVE_DATA_API_KEY` 환경변수로 등록합니다. 키는 코드나 GitHub에 저장하지 않습니다. 기본 심볼은 `.env.example`에 있으며 제공자 검색 결과가 다르면 환경변수로 교체할 수 있습니다.
 
+### ECOS·OpenDART 설정
+
+- 한국은행 ECOS에서 발급받은 키를 Vercel의 `ECOS_API_KEY`에 등록합니다.
+- OpenDART에서 발급받은 키를 Vercel의 `DART_API_KEY`에 등록합니다.
+- 기본 관심 종목은 `src/config/watchlist.ts`에서 회사명, 종목코드, DART 고유번호를 변경할 수 있습니다.
+- ECOS 통계표·항목 코드 기본값은 `.env.example`에 있으며, 통계 개편 시 환경변수로 교체할 수 있습니다.
+
 ## 데이터 교체 위치
 
-`src/lib/providers/fred.ts`와 `src/lib/providers/twelve-data.ts`가 외부 관측값을 내부 `MorningMarketSnapshot` 형식으로 정규화합니다. `src/lib/snapshot/get-snapshot.ts`에서 병렬 수집과 부분 실패 처리를 수행하며, 지원하지 않거나 실패한 지표는 `src/data/mock-snapshot.ts`의 값을 대체 데이터로 사용합니다.
+`src/lib/providers/` 아래의 FRED, Twelve Data, ECOS, OpenDART 어댑터가 외부 응답을 내부 `MorningMarketSnapshot` 형식으로 정규화합니다. `src/lib/snapshot/get-snapshot.ts`에서 병렬 수집과 부분 실패 처리를 수행하며, 지원하지 않거나 실패한 항목은 `src/data/mock-snapshot.ts`의 값을 대체 데이터로 사용합니다.
 
 ## 아직 포함하지 않은 범위
 
@@ -62,4 +71,4 @@ GitHub의 `market-morning` 저장소를 Vercel에 가져온 뒤 프로젝트 이
 - 인증과 데이터베이스
 - AI API 연결
 - 실제 투자 추천
-- ECOS·DART 실제 데이터 연결
+- ECOS·OpenDART API 키 등록과 프로덕션 응답 검증

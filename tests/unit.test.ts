@@ -7,6 +7,7 @@ import { isMorningMarketSnapshot } from "../src/lib/validation/snapshot";
 import { applyFredSeries } from "../src/lib/providers/fred";
 import { businessDaysSince, isMarketDataStale } from "../src/lib/freshness/business-days";
 import { applyTwelveDataSeries } from "../src/lib/providers/twelve-data";
+import { applyEcosSeries } from "../src/lib/providers/ecos";
 
 test("calculates absolute market changes", () => {
   assert.equal(calculateChange(1385.2, 1375.8), 9.4);
@@ -87,4 +88,15 @@ test("Twelve Data 관측값을 제공자 독립 지표로 변환한다", () => {
   ]);
   assert.equal(normalized.changePercent, 1);
   assert.match(normalized.source, /Twelve Data/);
+});
+
+test("ECOS 원달러 관측값을 제공자 독립 지표로 변환한다", () => {
+  const base = mockSnapshot.indicators.find((item) => item.id === "usdkrw")!;
+  const normalized = applyEcosSeries(base, [
+    { date: "2026-07-14", value: 1380 },
+    { date: "2026-07-15", value: 1385.5 },
+  ]);
+  assert.equal(normalized.value, 1385.5);
+  assert.equal(normalized.change, 5.5);
+  assert.match(normalized.source, /한국은행 ECOS/);
 });

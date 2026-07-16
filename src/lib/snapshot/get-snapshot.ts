@@ -2,6 +2,8 @@ import { mockSnapshot } from "../../data/mock-snapshot";
 import type { DataCollectionError, MarketIndicator, MorningMarketSnapshot } from "../../types/market";
 import { applyFredSeries, fetchFredSeries } from "../providers/fred";
 import { applyTwelveDataSeries, fetchTwelveDataSeries } from "../providers/twelve-data";
+import { applyEcosSeries, fetchEcosUsdKrw } from "../providers/ecos";
+import { fetchDartDisclosures } from "../providers/dart";
 import { assertMorningMarketSnapshot } from "../validation/snapshot";
 
 const liveIds = ["sp500", "nasdaq", "dow", "sox", "vix", "us2y", "us10y", "usdkrw", "dxy", "usdjpy", "usdcny", "wti"];
@@ -30,6 +32,10 @@ export async function getMorningMarketSnapshot(): Promise<MorningMarketSnapshot>
   const generatedAt = kstNow();
   const results = await Promise.allSettled(liveIds.map(async (id) => ({ id, ...(await fetchFredSeries(id)) })));
   const supplementalResults = await Promise.allSettled(supplementalIds.map(async (id) => ({ id, ...(await fetchTwelveDataSeries(id)) })));
+  const [ecosResult, dartResult] = await Promise.allSettled([
+    fetchEcosUsdKrw(),
+    fetchDartDisclosures(),
+  ]);
   const live = new Map<string, { seriesId: string; points: Awaited<ReturnType<typeof fetchFredSeries>>["points"] }>();
   const errors: DataCollectionError[] = [];
   const supplemental = new Map<string, { symbol: string; points: Awaited<ReturnType<typeof fetchTwelveDataSeries>>["points"] }>();
@@ -44,8 +50,17 @@ export async function getMorningMarketSnapshot(): Promise<MorningMarketSnapshot>
     if (result.status === "fulfilled") supplemental.set(id, result.value);
     else errors.push({ provider: `TwelveData:${id}`, message: result.reason instanceof Error ? result.reason.message : "알 수 없는 수집 오류", occurredAt: generatedAt });
   });
+  if (ecosResult.status === "rejected" && process.env.ECOS_API_KEY) {
+    errors.push({ provider: "ECOS:usdkrw", message: ecosResult.reason instanceof Error ? ecosResult.reason.message : "알 수 없는 수집 오류", occurredAt: generatedAt });
+  }
+  if (dartResult.status === "rejected" && process.env.DART_API_KEY) {
+    errors.push({ provider: "OpenDART", message: dartResult.reason instanceof Error ? dartResult.reason.message : "알 수 없는 수집 오류", occurredAt: generatedAt });
+  }
 
   const indicators = mockSnapshot.indicators.map((base) => {
+    if (base.id === "usdkrw" && ecosResult.status === "fulfilled") {
+      return applyEcosSeries(base, ecosResult.value);
+    }
     const data = live.get(base.id);
     if (data) return applyFredSeries(base, data.seriesId, data.points);
     const extra = supplemental.get(base.id);
@@ -69,6 +84,7 @@ export async function getMorningMarketSnapshot(): Promise<MorningMarketSnapshot>
     collectionStatus: live.size === liveIds.length ? "partial" : live.size === 0 ? "failed" : "partial",
     summary: summary(indicators),
     indicators,
+    disclosures: dartResult.status === "fulfilled" ? dartResult.value : mockSnapshot.disclosures,
     errors,
   };
   assertMorningMarketSnapshot(snapshot);
