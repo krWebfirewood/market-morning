@@ -6,8 +6,8 @@ import { DetailChart } from "./DetailChart";
 import { Sparkline } from "./Sparkline";
 
 const statusLabels: Record<MarketIndicator["status"], string> = {
-  "strong-rise": "강한 상승", rise: "상승", stable: "보합", fall: "하락",
-  "strong-fall": "강한 하락", "elevated-risk": "위험 상승", normal: "정상 범위",
+  "strong-rise": "상승", rise: "상승", stable: "보합", fall: "하락",
+  "strong-fall": "하락", "elevated-risk": "위험 상승", normal: "정상 범위",
   stale: "데이터 지연", unavailable: "데이터 없음",
 };
 

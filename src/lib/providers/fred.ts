@@ -55,9 +55,7 @@ function classifyStatus(
 ): MarketIndicator["status"] {
   if (category === "volatility") return value >= 25 ? "elevated-risk" : "normal";
   const change = changePercent ?? 0;
-  if (change >= 1.5) return "strong-rise";
   if (change >= 0.4) return "rise";
-  if (change <= -1.5) return "strong-fall";
   if (change <= -0.4) return "fall";
   return "stable";
 }

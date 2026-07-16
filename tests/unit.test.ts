@@ -59,6 +59,20 @@ test("FRED 관측값을 정규화된 지표로 변환한다", () => {
   assert.match(normalized.source, /FRED/);
 });
 
+test("큰 등락도 과장된 강도 표현 없이 상승·하락으로 분류한다", () => {
+  const base = mockSnapshot.indicators.find((item) => item.id === "sp500")!;
+  const rise = applyFredSeries(base, "SP500", [
+    { date: "2026-07-14", value: 100 },
+    { date: "2026-07-15", value: 103 },
+  ]);
+  const fall = applyFredSeries(base, "SP500", [
+    { date: "2026-07-14", value: 100 },
+    { date: "2026-07-15", value: 97 },
+  ]);
+  assert.equal(rise.status, "rise");
+  assert.equal(fall.status, "fall");
+});
+
 test("주말을 제외한 영업일 수로 지연 여부를 판정한다", () => {
   assert.equal(businessDaysSince("2026-07-10", new Date("2026-07-13T12:00:00Z")), 1);
   assert.equal(isMarketDataStale("2026-07-10", "equity", new Date("2026-07-13T12:00:00Z")), false);
