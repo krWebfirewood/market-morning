@@ -18,33 +18,73 @@ const seriesByIndicator: Record<string, string> = {
   wti: "DCOILWTICO",
 };
 
-function parseCsv(csv: string): TimeSeriesPoint[] {
-  return csv
-    .trim()
-    .split(/\r?\n/)
-    .slice(1)
-    .map((line) => {
-      const [date, rawValue] = line.split(",");
-      return { date, value: Number(rawValue) };
-    })
-    .filter((point) => point.date && Number.isFinite(point.value))
-    .slice(-20);
+export function parseFredBatchCsv(csv: string) {
+  const [header = "", ...rows] = csv.trim().split(/\r?\n/);
+  const seriesIds = header.split(",").slice(1);
+  return Object.fromEntries(seriesIds.map((seriesId, columnIndex) => {
+    const points = rows.map((line) => {
+      const columns = line.split(",");
+      return { date: columns[0], value: Number(columns[columnIndex + 1]) };
+    }).filter((point) => point.date && Number.isFinite(point.value)).slice(-20);
+    return [seriesId, points];
+  })) as Record<string, TimeSeriesPoint[]>;
+}
+
+async function fetchFredCsv(url: string) {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        next: { revalidate: 3600 },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!response.ok) throw new Error(`FRED 응답 오류: ${response.status}`);
+      return await response.text();
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
+export async function fetchFredSeriesBatch(indicatorIds: string[]) {
+  const pairs = indicatorIds.map((indicatorId) => {
+    const seriesId = seriesByIndicator[indicatorId];
+    if (!seriesId) throw new Error(`FRED 계열이 없는 지표입니다: ${indicatorId}`);
+    return { indicatorId, seriesId };
+  });
+  const end = new Date();
+  const start = new Date(end);
+  start.setUTCDate(start.getUTCDate() - 75);
+  const data: Array<{ indicatorId: string; seriesId: string; points: TimeSeriesPoint[] }> = [];
+  const errors: Array<{ indicatorId: string; error: unknown }> = [];
+  for (let index = 0; index < pairs.length; index += 3) {
+    const chunk = pairs.slice(index, index + 3);
+    const results = await Promise.allSettled(chunk.map(async ({ indicatorId, seriesId }) => {
+      const params = new URLSearchParams({
+        id: seriesId,
+        cosd: start.toISOString().slice(0, 10),
+        coed: end.toISOString().slice(0, 10),
+      });
+      const parsed = parseFredBatchCsv(await fetchFredCsv(`${FRED_GRAPH_URL}?${params}`));
+      const points = parsed[seriesId] ?? [];
+      if (points.length < 2) throw new Error(`FRED ${seriesId} 유효 관측값 부족`);
+      return { indicatorId, seriesId, points };
+    }));
+    results.forEach((result, resultIndex) => {
+      if (result.status === "fulfilled") data.push(result.value);
+      else errors.push({ indicatorId: chunk[resultIndex].indicatorId, error: result.reason });
+    });
+  }
+  return { data, errors };
 }
 
 export async function fetchFredSeries(
   indicatorId: string,
 ): Promise<{ seriesId: string; points: TimeSeriesPoint[] }> {
-  const seriesId = seriesByIndicator[indicatorId];
-  if (!seriesId) throw new Error(`FRED 계열이 없는 지표입니다: ${indicatorId}`);
-
-  const response = await fetch(`${FRED_GRAPH_URL}?id=${seriesId}`, {
-    next: { revalidate: 3600 },
-    signal: AbortSignal.timeout(8_000),
-  });
-  if (!response.ok) throw new Error(`FRED ${seriesId} 응답 오류: ${response.status}`);
-
-  const points = parseCsv(await response.text());
-  if (points.length < 2) throw new Error(`FRED ${seriesId} 유효 관측값 부족`);
+  const result = await fetchFredSeriesBatch([indicatorId]);
+  if (!result.data.length) throw result.errors[0]?.error ?? new Error(`FRED ${indicatorId} 수집 실패`);
+  const [{ seriesId, points }] = result.data;
   return { seriesId, points };
 }
 

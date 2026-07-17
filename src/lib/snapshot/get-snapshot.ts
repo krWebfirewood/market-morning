@@ -1,6 +1,6 @@
 import { mockSnapshot } from "../../data/mock-snapshot";
 import type { DataCollectionError, MarketIndicator, MorningMarketSnapshot } from "../../types/market";
-import { applyFredSeries, fetchFredSeries } from "../providers/fred";
+import { applyFredSeries, fetchFredSeriesBatch } from "../providers/fred";
 import { applyTwelveDataSeries, fetchTwelveDataSeries } from "../providers/twelve-data";
 import { applyEcosSeries, fetchEcosUsdKrw } from "../providers/ecos";
 import { fetchDartDisclosures } from "../providers/dart";
@@ -30,21 +30,25 @@ function summary(indicators: MarketIndicator[]) {
 
 export async function getMorningMarketSnapshot(): Promise<MorningMarketSnapshot> {
   const generatedAt = kstNow();
-  const results = await Promise.allSettled(liveIds.map(async (id) => ({ id, ...(await fetchFredSeries(id)) })));
-  const supplementalResults = await Promise.allSettled(supplementalIds.map(async (id) => ({ id, ...(await fetchTwelveDataSeries(id)) })));
-  const [ecosResult, dartResult] = await Promise.allSettled([
-    fetchEcosUsdKrw(),
-    fetchDartDisclosures(),
+  const [fredResult, supplementalResults, providerResults] = await Promise.all([
+    Promise.allSettled([fetchFredSeriesBatch(liveIds)]),
+    Promise.allSettled(supplementalIds.map(async (id) => ({ id, ...(await fetchTwelveDataSeries(id)) }))),
+    Promise.allSettled([fetchEcosUsdKrw(), fetchDartDisclosures()]),
   ]);
-  const live = new Map<string, { seriesId: string; points: Awaited<ReturnType<typeof fetchFredSeries>>["points"] }>();
+  const [ecosResult, dartResult] = providerResults;
+  const live = new Map<string, { seriesId: string; points: Awaited<ReturnType<typeof fetchFredSeriesBatch>>["data"][number]["points"] }>();
   const errors: DataCollectionError[] = [];
   const supplemental = new Map<string, { symbol: string; points: Awaited<ReturnType<typeof fetchTwelveDataSeries>>["points"] }>();
 
-  results.forEach((result, index) => {
-    const id = liveIds[index];
-    if (result.status === "fulfilled") live.set(id, result.value);
-    else errors.push({ provider: `FRED:${id}`, message: result.reason instanceof Error ? result.reason.message : "알 수 없는 수집 오류", occurredAt: generatedAt });
-  });
+  const fredBatch = fredResult[0];
+  if (fredBatch.status === "fulfilled") {
+    fredBatch.value.data.forEach(({ indicatorId, seriesId, points }) => live.set(indicatorId, { seriesId, points }));
+    fredBatch.value.errors.forEach(({ indicatorId, error }) => {
+      errors.push({ provider: `FRED:${indicatorId}`, message: error instanceof Error ? error.message : "알 수 없는 수집 오류", occurredAt: generatedAt });
+    });
+  } else {
+    errors.push({ provider: "FRED:batch", message: fredBatch.reason instanceof Error ? fredBatch.reason.message : "알 수 없는 수집 오류", occurredAt: generatedAt });
+  }
   supplementalResults.forEach((result, index) => {
     const id = supplementalIds[index];
     if (result.status === "fulfilled") supplemental.set(id, result.value);

@@ -4,7 +4,7 @@ import { calculateBasisPoints, calculateChange, calculatePercentageChange } from
 import { snapshotToMarkdown } from "../src/lib/export/markdown";
 import { mockSnapshot } from "../src/data/mock-snapshot";
 import { isMorningMarketSnapshot } from "../src/lib/validation/snapshot";
-import { applyFredSeries } from "../src/lib/providers/fred";
+import { applyFredSeries, parseFredBatchCsv } from "../src/lib/providers/fred";
 import { businessDaysSince, isMarketDataStale } from "../src/lib/freshness/business-days";
 import { applyTwelveDataSeries } from "../src/lib/providers/twelve-data";
 import { applyEcosSeries } from "../src/lib/providers/ecos";
@@ -58,6 +58,16 @@ test("FRED 관측값을 정규화된 지표로 변환한다", () => {
   assert.equal(normalized.change, 1);
   assert.equal(normalized.changePercent, 1);
   assert.match(normalized.source, /FRED/);
+});
+
+test("여러 FRED 계열의 CSV를 한 번에 분리한다", () => {
+  const parsed = parseFredBatchCsv([
+    "observation_date,SP500,DGS10",
+    "2026-07-14,6200,4.20",
+    "2026-07-15,6250,4.25",
+  ].join("\n"));
+  assert.deepEqual(parsed.SP500.at(-1), { date: "2026-07-15", value: 6250 });
+  assert.deepEqual(parsed.DGS10.at(-1), { date: "2026-07-15", value: 4.25 });
 });
 
 test("큰 등락도 과장된 강도 표현 없이 상승·하락으로 분류한다", () => {
