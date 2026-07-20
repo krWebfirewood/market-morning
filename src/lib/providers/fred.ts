@@ -1,7 +1,9 @@
 import type { MarketIndicator, TimeSeriesPoint } from "../../types/market";
+import cachedFredSnapshot from "../../data/fred-snapshot.json";
 import { isMarketDataStale } from "../freshness/business-days";
 
 const FRED_GRAPH_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv";
+const FRED_API_URL = "https://api.stlouisfed.org/fred/series/observations";
 
 const seriesByIndicator: Record<string, string> = {
   sp500: "SP500",
@@ -18,13 +20,16 @@ const seriesByIndicator: Record<string, string> = {
   wti: "DCOILWTICO",
 };
 
+const cachedSeries = cachedFredSnapshot.series as Record<string, TimeSeriesPoint[]>;
+
 export function parseFredBatchCsv(csv: string) {
   const [header = "", ...rows] = csv.trim().split(/\r?\n/);
   const seriesIds = header.split(",").slice(1);
   return Object.fromEntries(seriesIds.map((seriesId, columnIndex) => {
     const points = rows.map((line) => {
       const columns = line.split(",");
-      return { date: columns[0], value: Number(columns[columnIndex + 1]) };
+      const rawValue = columns[columnIndex + 1]?.trim();
+      return { date: columns[0], value: rawValue ? Number(rawValue) : Number.NaN };
     }).filter((point) => point.date && Number.isFinite(point.value)).slice(-20);
     return [seriesId, points];
   })) as Record<string, TimeSeriesPoint[]>;
@@ -36,7 +41,11 @@ async function fetchFredCsv(url: string) {
     try {
       const response = await fetch(url, {
         next: { revalidate: 3600 },
-        signal: AbortSignal.timeout(15_000),
+        headers: {
+          Accept: "text/csv,text/plain;q=0.9,*/*;q=0.8",
+          "User-Agent": "MarketMorning/1.0 (market data dashboard)",
+        },
+        signal: AbortSignal.timeout(12_000),
       });
       if (!response.ok) throw new Error(`FRED 응답 오류: ${response.status}`);
       return await response.text();
@@ -45,6 +54,34 @@ async function fetchFredCsv(url: string) {
     }
   }
   throw lastError;
+}
+
+interface FredApiResponse {
+  observations?: Array<{ date: string; value: string }>;
+  error_message?: string;
+}
+
+async function fetchFredApiSeries(seriesId: string, start: string, end: string) {
+  const apiKey = process.env.FRED_API_KEY;
+  if (!apiKey) return null;
+  const params = new URLSearchParams({
+    series_id: seriesId,
+    api_key: apiKey,
+    file_type: "json",
+    observation_start: start,
+    observation_end: end,
+    sort_order: "asc",
+  });
+  const response = await fetch(`${FRED_API_URL}?${params}`, {
+    next: { revalidate: 3600 },
+    signal: AbortSignal.timeout(12_000),
+  });
+  const payload = (await response.json()) as FredApiResponse;
+  if (!response.ok) throw new Error(payload.error_message ?? `FRED API 응답 오류: ${response.status}`);
+  return (payload.observations ?? [])
+    .map((item) => ({ date: item.date, value: Number(item.value) }))
+    .filter((point) => point.date && Number.isFinite(point.value))
+    .slice(-20);
 }
 
 export async function fetchFredSeriesBatch(indicatorIds: string[]) {
@@ -58,24 +95,31 @@ export async function fetchFredSeriesBatch(indicatorIds: string[]) {
   start.setUTCDate(start.getUTCDate() - 75);
   const data: Array<{ indicatorId: string; seriesId: string; points: TimeSeriesPoint[] }> = [];
   const errors: Array<{ indicatorId: string; error: unknown }> = [];
-  for (let index = 0; index < pairs.length; index += 3) {
-    const chunk = pairs.slice(index, index + 3);
-    const results = await Promise.allSettled(chunk.map(async ({ indicatorId, seriesId }) => {
+  if (process.env.VERCEL && !process.env.FRED_API_KEY) {
+    pairs.forEach(({ indicatorId, seriesId }) => {
+      const points = cachedSeries[seriesId] ?? [];
+      if (points.length >= 2) data.push({ indicatorId, seriesId, points });
+      else errors.push({ indicatorId, error: new Error(`FRED ${seriesId} 저장 스냅샷 없음`) });
+    });
+    return { data, errors };
+  }
+  const results = await Promise.allSettled(pairs.map(async ({ indicatorId, seriesId }) => {
+      const startDate = start.toISOString().slice(0, 10);
+      const endDate = end.toISOString().slice(0, 10);
+      const apiPoints = await fetchFredApiSeries(seriesId, startDate, endDate);
       const params = new URLSearchParams({
         id: seriesId,
-        cosd: start.toISOString().slice(0, 10),
-        coed: end.toISOString().slice(0, 10),
+        cosd: startDate,
+        coed: endDate,
       });
-      const parsed = parseFredBatchCsv(await fetchFredCsv(`${FRED_GRAPH_URL}?${params}`));
-      const points = parsed[seriesId] ?? [];
+      const points = apiPoints ?? parseFredBatchCsv(await fetchFredCsv(`${FRED_GRAPH_URL}?${params}`))[seriesId] ?? [];
       if (points.length < 2) throw new Error(`FRED ${seriesId} 유효 관측값 부족`);
       return { indicatorId, seriesId, points };
     }));
-    results.forEach((result, resultIndex) => {
+  results.forEach((result, resultIndex) => {
       if (result.status === "fulfilled") data.push(result.value);
-      else errors.push({ indicatorId: chunk[resultIndex].indicatorId, error: result.reason });
-    });
-  }
+      else errors.push({ indicatorId: pairs[resultIndex].indicatorId, error: result.reason });
+  });
   return { data, errors };
 }
 
@@ -104,6 +148,7 @@ export function applyFredSeries(
   base: MarketIndicator,
   seriesId: string,
   points: TimeSeriesPoint[],
+  now = new Date(),
 ): MarketIndicator {
   const current = points.at(-1)!;
   const previous = points.at(-2)!;
@@ -111,7 +156,7 @@ export function applyFredSeries(
   const changePercent = base.category === "rate" || base.id === "spread"
     ? null
     : Number(((change / previous.value) * 100).toFixed(2));
-  const isStale = isMarketDataStale(current.date, base.category);
+  const isStale = isMarketDataStale(current.date, base.category, now);
   const interpretation = base.category === "rate"
     ? `${base.shortName} 금리가 직전 관측값보다 ${change >= 0 ? "상승" : "하락"}했습니다.`
     : base.category === "fx"

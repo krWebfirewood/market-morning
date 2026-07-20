@@ -1,6 +1,7 @@
 import type { EconomicEvent } from "../types/market";
 
 export function EventList({ events }: { events: EconomicEvent[] }) {
+  if (!events.length) return <div className="empty-state">연결된 일정 데이터가 없어 표시하지 않습니다.</div>;
   return (
     <div className="event-list">
       {events.map((event) => (

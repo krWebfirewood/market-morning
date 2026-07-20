@@ -40,7 +40,7 @@ test("Markdown export tolerates missing indicator values", () => {
   snapshot.indicators[0].value = null;
   snapshot.indicators[0].change = null;
   snapshot.indicators[0].changePercent = null;
-  assert.match(snapshotToMarkdown(snapshot), /S&P 500: 데이터 없음/);
+  assert.match(snapshotToMarkdown(snapshot), /S&P 500: 미수집/);
 });
 
 test("정규화된 스냅샷 구조를 검증한다", () => {
@@ -70,16 +70,26 @@ test("여러 FRED 계열의 CSV를 한 번에 분리한다", () => {
   assert.deepEqual(parsed.DGS10.at(-1), { date: "2026-07-15", value: 4.25 });
 });
 
+test("FRED CSV의 빈 관측값을 0으로 오인하지 않는다", () => {
+  const parsed = parseFredBatchCsv([
+    "observation_date,SP500,DGS10",
+    "2026-07-14,,4.20",
+    "2026-07-15,6250,",
+  ].join("\n"));
+  assert.deepEqual(parsed.SP500, [{ date: "2026-07-15", value: 6250 }]);
+  assert.deepEqual(parsed.DGS10, [{ date: "2026-07-14", value: 4.2 }]);
+});
+
 test("큰 등락도 과장된 강도 표현 없이 상승·하락으로 분류한다", () => {
   const base = mockSnapshot.indicators.find((item) => item.id === "sp500")!;
   const rise = applyFredSeries(base, "SP500", [
     { date: "2026-07-14", value: 100 },
     { date: "2026-07-15", value: 103 },
-  ]);
+  ], new Date("2026-07-16T12:00:00Z"));
   const fall = applyFredSeries(base, "SP500", [
     { date: "2026-07-14", value: 100 },
     { date: "2026-07-15", value: 97 },
-  ]);
+  ], new Date("2026-07-16T12:00:00Z"));
   assert.equal(rise.status, "rise");
   assert.equal(fall.status, "fall");
 });

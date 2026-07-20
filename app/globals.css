@@ -95,6 +95,8 @@ h1 { margin: 0; max-width: 760px; font-family: Georgia, "Times New Roman", serif
 .change.up { color: var(--up); } .change.down { color: var(--down); } .change.flat { color: var(--muted); }
 .sparkline { width: 105px; height: 44px; color: var(--accent); overflow: visible; }
 .sparkline-empty { color: var(--muted); font-size: .7rem; }
+.status-unavailable { border-color: color-mix(in srgb, var(--warning) 38%, var(--border)); }
+.unavailable-card { cursor: default; }
 .interpretation { margin: 22px 0 18px; color: var(--muted); font-size: .75rem; line-height: 1.5; }
 .card-footer { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 6px; padding-top: 14px; border-top: 1px solid var(--border); color: var(--muted); font-size: .58rem; }
 .card-footer span:last-child { color: var(--accent); font-weight: 700; }

@@ -17,6 +17,18 @@ const categoryLabels: Record<MarketIndicator["category"], string> = {
 
 export function IndicatorCard({ indicator }: { indicator: MarketIndicator }) {
   const [expanded, setExpanded] = useState(false);
+  if (indicator.status === "unavailable") {
+    return (
+      <article className="indicator-card status-unavailable" aria-label={`${indicator.name} 데이터를 가져오지 못함`}>
+        <div className="card-main unavailable-card">
+          <div className="card-heading"><div><p className="eyebrow">{categoryLabels[indicator.category]}</p><h3>{indicator.shortName}</h3></div><span className="status-pill status-unavailable">가져오기 실패</span></div>
+          <div className="card-value-row"><div><p className="card-value">—</p><p className="change flat"><span aria-hidden="true">×</span> 데이터 없음</p></div><Sparkline data={[]} label={indicator.name} /></div>
+          <p className="interpretation">{indicator.interpretation}</p>
+          <div className="card-footer"><span>{indicator.source}</span><span>재수집 예정</span></div>
+        </div>
+      </article>
+    );
+  }
   const positive = (indicator.change ?? 0) > 0;
   const negative = (indicator.change ?? 0) < 0;
   const direction = positive ? "↑" : negative ? "↓" : "→";

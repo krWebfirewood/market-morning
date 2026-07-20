@@ -1,0 +1,30 @@
+name: Update market data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 22 * * 0-4"
+
+permissions:
+  contents: write
+
+jobs:
+  update-fred-snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Refresh FRED snapshot
+        run: node scripts/update-fred-snapshot.mjs
+      - name: Commit updated snapshot
+        run: |
+          if git diff --quiet -- src/data/fred-snapshot.json; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/data/fred-snapshot.json
+          git commit -m "chore: refresh FRED market snapshot"
+          git push

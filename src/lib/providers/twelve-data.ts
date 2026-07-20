@@ -2,10 +2,10 @@ import type { MarketIndicator, TimeSeriesPoint } from "../../types/market";
 import { applyFredSeries } from "./fred";
 
 const instruments: Record<string, { symbol: string; micCode?: string }> = {
-  kospi: { symbol: process.env.TWELVE_DATA_KOSPI_SYMBOL ?? "KS11", micCode: "XKRX" },
-  kosdaq: { symbol: process.env.TWELVE_DATA_KOSDAQ_SYMBOL ?? "KQ11", micCode: "XKRX" },
+  kospi: { symbol: process.env.TWELVE_DATA_KOSPI_SYMBOL ?? "", micCode: "XKRX" },
+  kosdaq: { symbol: process.env.TWELVE_DATA_KOSDAQ_SYMBOL ?? "", micCode: "XKRX" },
   gold: { symbol: process.env.TWELVE_DATA_GOLD_SYMBOL ?? "XAU/USD" },
-  copper: { symbol: process.env.TWELVE_DATA_COPPER_SYMBOL ?? "HG1" },
+  copper: { symbol: process.env.TWELVE_DATA_COPPER_SYMBOL ?? "" },
 };
 
 interface TwelveDataResponse {
@@ -22,6 +22,7 @@ export async function fetchTwelveDataSeries(
   const instrument = instruments[indicatorId];
   if (!instrument) throw new Error(`Twelve Data 심볼이 없는 지표입니다: ${indicatorId}`);
   const { symbol, micCode } = instrument;
+  if (!symbol) throw new Error(`Twelve Data ${indicatorId} 심볼이 설정되지 않았습니다.`);
 
   const params = new URLSearchParams({
     symbol,

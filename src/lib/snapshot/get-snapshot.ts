@@ -16,16 +16,39 @@ function kstNow() {
 
 function summary(indicators: MarketIndicator[]) {
   const byId = (id: string) => indicators.find((item) => item.id === id);
-  const sp500 = byId("sp500")?.changePercent ?? 0;
-  const nasdaq = byId("nasdaq")?.changePercent ?? 0;
-  const sox = byId("sox")?.changePercent ?? 0;
-  const usdKrw = byId("usdkrw")?.change ?? 0;
-  const us10y = byId("us10y")?.change ?? 0;
-  return [
-    `미국 증시는 S&P 500 ${sp500 >= 0 ? "상승" : "하락"}, 나스닥 ${nasdaq >= 0 ? "상승" : "하락"} 흐름으로 마감했습니다.`,
-    `반도체 지수는 전일 대비 ${sox >= 0 ? "강세" : "약세"}였고, 미 10년물 금리는 ${us10y >= 0 ? "상승" : "하락"}했습니다.`,
-    `원/달러 환율은 직전 관측값보다 ${Math.abs(usdKrw).toFixed(2)}원 ${usdKrw >= 0 ? "올랐습니다" : "내렸습니다"}.`,
-  ];
+  const lines: string[] = [];
+  const sp500 = byId("sp500");
+  const nasdaq = byId("nasdaq");
+  if (sp500?.changePercent != null && nasdaq?.changePercent != null) {
+    lines.push(`미국 증시는 S&P 500 ${sp500.changePercent >= 0 ? "상승" : "하락"}, 나스닥 ${nasdaq.changePercent >= 0 ? "상승" : "하락"} 흐름으로 마감했습니다.`);
+  }
+  const sox = byId("sox");
+  const us10y = byId("us10y");
+  if (sox?.changePercent != null && us10y?.change != null) {
+    lines.push(`반도체 지수는 전일 대비 ${sox.changePercent >= 0 ? "강세" : "약세"}였고, 미 10년물 금리는 ${us10y.change >= 0 ? "상승" : "하락"}했습니다.`);
+  }
+  const usdKrw = byId("usdkrw");
+  if (usdKrw?.change != null) {
+    lines.push(`원/달러 환율은 직전 관측값보다 ${Math.abs(usdKrw.change).toFixed(2)}원 ${usdKrw.change >= 0 ? "올랐습니다" : "내렸습니다"}.`);
+  }
+  return lines.length ? lines : ["현재 수집된 지표가 부족해 규칙 기반 요약을 생성하지 않았습니다."];
+}
+
+function unavailable(base: MarketIndicator, generatedAt: string): MarketIndicator {
+  return {
+    ...base,
+    value: null,
+    previousValue: null,
+    change: null,
+    changePercent: null,
+    status: "unavailable",
+    interpretation: `${base.shortName} 데이터를 현재 가져오지 못했습니다.`,
+    source: "외부 데이터 수집 실패",
+    sourceUrl: undefined,
+    asOf: generatedAt,
+    isStale: true,
+    recentSeries: [],
+  };
 }
 
 export async function getMorningMarketSnapshot(): Promise<MorningMarketSnapshot> {
@@ -69,7 +92,7 @@ export async function getMorningMarketSnapshot(): Promise<MorningMarketSnapshot>
     if (data) return applyFredSeries(base, data.seriesId, data.points);
     const extra = supplemental.get(base.id);
     if (extra) return applyTwelveDataSeries(base, extra.symbol, extra.points);
-    return { ...base, isStale: true, status: "stale" as const, source: `${base.source} · 대체 데이터` };
+    return unavailable(base, generatedAt);
   });
 
   const us2y = indicators.find((item) => item.id === "us2y");
@@ -78,17 +101,41 @@ export async function getMorningMarketSnapshot(): Promise<MorningMarketSnapshot>
   if (us2y?.value != null && us10y?.value != null && spreadIndex >= 0) {
     const value = Math.round((us10y.value - us2y.value) * 100);
     const previous = Math.round(((us10y.previousValue ?? us10y.value) - (us2y.previousValue ?? us2y.value)) * 100);
-    indicators[spreadIndex] = { ...indicators[spreadIndex], value, previousValue: previous, change: value - previous, source: "FRED 금리차 계산", asOf: us10y.asOf, isStale: us10y.isStale || us2y.isStale, recentSeries: us10y.recentSeries.map((point, index) => ({ date: point.date, value: Math.round((point.value - (us2y.recentSeries[index]?.value ?? point.value)) * 100) })) };
+    const us2yByDate = new Map(us2y.recentSeries.map((point) => [point.date, point.value]));
+    const recentSeries = us10y.recentSeries.flatMap((point) => {
+      const twoYear = us2yByDate.get(point.date);
+      return twoYear == null ? [] : [{ date: point.date, value: Math.round((point.value - twoYear) * 100) }];
+    });
+    indicators[spreadIndex] = {
+      ...indicators[spreadIndex],
+      value,
+      previousValue: previous,
+      change: value - previous,
+      status: us10y.isStale || us2y.isStale ? "stale" : value >= previous ? "rise" : "fall",
+      interpretation: `장단기 금리차가 직전 관측값보다 ${value >= previous ? "확대" : "축소"}됐습니다.`,
+      source: "FRED 금리차 계산",
+      asOf: us10y.asOf,
+      isStale: us10y.isStale || us2y.isStale,
+      recentSeries,
+    };
   }
+
+  const availableCount = indicators.filter((item) => item.value != null).length;
+  const collectionStatus = availableCount === indicators.length
+    ? "success"
+    : availableCount === 0
+      ? "failed"
+      : "partial";
 
   const snapshot: MorningMarketSnapshot = {
     ...mockSnapshot,
     generatedAt,
     marketDate: generatedAt.slice(0, 10),
-    collectionStatus: live.size === liveIds.length ? "partial" : live.size === 0 ? "failed" : "partial",
+    collectionStatus,
     summary: summary(indicators),
     indicators,
-    disclosures: dartResult.status === "fulfilled" ? dartResult.value : mockSnapshot.disclosures,
+    events: [],
+    disclosures: dartResult.status === "fulfilled" ? dartResult.value : [],
     errors,
   };
   assertMorningMarketSnapshot(snapshot);

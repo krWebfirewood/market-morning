@@ -8,12 +8,12 @@ function signed(value: number | null, suffix = "") {
 }
 
 function indicatorLine(item: MarketIndicator) {
-  if (item.value === null) return `- ${item.name}: 데이터 없음`;
+  if (item.value === null) return `- ${item.name}: 미수집 (${item.source})`;
   const value = `${item.value.toLocaleString("en-US", { maximumFractionDigits: 2 })}${item.unit}`;
   const change = item.changePercent !== null
     ? `일간 변동 ${signed(item.changePercent, "%")}`
     : `일간 변동 ${signed(item.change, item.unit)}`;
-  return `- ${item.name}: ${value}, ${change}`;
+  return `- ${item.name}: ${value}, ${change} · 출처 ${item.source}${item.isStale ? " · 지연" : ""}`;
 }
 
 export function snapshotToMarkdown(snapshot: MorningMarketSnapshot) {
@@ -32,7 +32,7 @@ export function snapshotToMarkdown(snapshot: MorningMarketSnapshot) {
     "",
     `생성 시각: ${snapshot.generatedAt.replace("T", " ").replace("+09:00", " KST")}`,
     "",
-    "> UI 개발용 모의 데이터입니다. 사용 전 모든 수치를 확인하세요.",
+    "> 실제 수집값과 미수집 항목을 구분합니다. 중요한 수치는 공식 출처에서 다시 확인하세요.",
     "",
     "## 아침 요약",
     ...snapshot.summary.map((line) => `- ${line}`),
@@ -45,9 +45,9 @@ export function snapshotToMarkdown(snapshot: MorningMarketSnapshot) {
   lines.push(
     "",
     "## 오늘의 주요 일정",
-    ...snapshot.events.map((event) =>
+    ...(snapshot.events.length ? snapshot.events.map((event) =>
       `- ${event.dateTimeKst.slice(11, 16)} KST: ${event.title}, 중요도 ${event.importance}`,
-    ),
+    ) : ["- 연결된 일정 데이터 없음"]),
     "",
     "## 관심 종목 공시",
     ...(snapshot.disclosures.length
