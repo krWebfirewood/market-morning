@@ -1,12 +1,14 @@
 "use client";
 
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { indicatorGuides } from "../config/indicator-guide";
 import type { MarketIndicator } from "../types/market";
 
 export function DetailChart({ indicator }: { indicator: MarketIndicator }) {
   const values = indicator.recentSeries.map((point) => point.value);
   const min = Math.min(...values);
   const max = Math.max(...values);
+  const guide = indicatorGuides[indicator.id];
 
   return (
     <div className="detail-chart" aria-label={`${indicator.name} 1개월 선 차트`}>
@@ -31,6 +33,13 @@ export function DetailChart({ indicator }: { indicator: MarketIndicator }) {
         </ResponsiveContainer>
       </div>
       <p className="chart-summary">최근 한 달간 {indicator.shortName}은 {min.toLocaleString("ko-KR")}~{max.toLocaleString("ko-KR")}{indicator.unit} 범위였습니다. 현재값: {indicator.value?.toLocaleString("ko-KR") ?? "데이터 없음"}{indicator.unit}.</p>
+      {guide && (
+        <aside className="indicator-guide" aria-label={`${indicator.name} 관찰 가이드`}>
+          <p className="guide-label">이 지표를 볼 때</p>
+          <p>{guide.focus}</p>
+          <div><span>같이 볼 지표</span><strong>{guide.pairWith}</strong></div>
+        </aside>
+      )}
     </div>
   );
 }

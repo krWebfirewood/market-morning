@@ -105,6 +105,12 @@ h1 { margin: 0; max-width: 760px; font-family: Georgia, "Times New Roman", serif
 .chart-stats strong { color: var(--ink); }
 .chart-canvas { height: 180px; }
 .chart-summary { margin: 8px 0 0; color: var(--muted); font-size: .69rem; line-height: 1.5; }
+.indicator-guide { margin-top: 14px; padding: 14px; border-radius: 12px; background: var(--accent-soft); color: var(--muted); font-size: .69rem; line-height: 1.55; }
+.indicator-guide p { margin: 0; }
+.indicator-guide .guide-label { margin-bottom: 5px; color: var(--accent-strong); font-size: .6rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.indicator-guide div { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 9px; padding-top: 9px; border-top: 1px solid color-mix(in srgb, var(--accent) 18%, transparent); }
+.indicator-guide div span { color: var(--muted); }
+.indicator-guide div strong { color: var(--ink); font-weight: 700; }
 .event-list { border-top: 1px solid var(--ink); }
 .event-row { display: grid; grid-template-columns: 90px 1fr auto; gap: 24px; align-items: center; padding: 24px 8px; border-bottom: 1px solid var(--border); }
 .event-row time { font-family: var(--font-geist-mono), monospace; font-size: 1.3rem; font-weight: 700; }
