@@ -8,7 +8,7 @@ import { applyFredSeries, parseFredBatchCsv } from "../src/lib/providers/fred";
 import { businessDaysSince, isMarketDataStale } from "../src/lib/freshness/business-days";
 import { applyTwelveDataSeries } from "../src/lib/providers/twelve-data";
 import { applyEcosSeries } from "../src/lib/providers/ecos";
-import { applyYahooIndexSeries } from "../src/lib/providers/yahoo-finance";
+import { applyYahooMarketSeries } from "../src/lib/providers/yahoo-finance";
 
 test("calculates absolute market changes", () => {
   assert.equal(calculateChange(1385.2, 1375.8), 9.4);
@@ -113,7 +113,7 @@ test("Twelve Data 관측값을 제공자 독립 지표로 변환한다", () => {
 
 test("Yahoo Finance 국내 지수 관측값을 제공자 독립 지표로 변환한다", () => {
   const base = mockSnapshot.indicators.find((item) => item.id === "kospi")!;
-  const normalized = applyYahooIndexSeries(base, "^KS11", [
+  const normalized = applyYahooMarketSeries(base, "^KS11", [
     { date: "2026-07-23", value: 6600 },
     { date: "2026-07-24", value: 6706.15 },
   ]);

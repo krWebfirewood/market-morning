@@ -1,15 +1,13 @@
 import { mockSnapshot } from "../../data/mock-snapshot";
 import type { DataCollectionError, MarketIndicator, MorningMarketSnapshot } from "../../types/market";
 import { applyFredSeries, fetchFredSeriesBatch } from "../providers/fred";
-import { applyTwelveDataSeries, fetchTwelveDataSeries } from "../providers/twelve-data";
 import { applyEcosSeries, fetchEcosUsdKrw } from "../providers/ecos";
 import { fetchDartDisclosures } from "../providers/dart";
-import { applyYahooIndexSeries, fetchYahooIndexSeries } from "../providers/yahoo-finance";
+import { applyYahooMarketSeries, fetchYahooMarketSeries } from "../providers/yahoo-finance";
 import { assertMorningMarketSnapshot } from "../validation/snapshot";
 
 const liveIds = ["sp500", "nasdaq", "dow", "sox", "vix", "us2y", "us10y", "usdkrw", "dxy", "usdjpy", "usdcny", "wti"];
-const domesticIndexIds = ["kospi", "kosdaq"];
-const supplementalIds = ["gold", "copper"];
+const yahooMarketIds = ["kospi", "kosdaq", "gold", "copper"];
 
 function kstNow() {
   const now = new Date(Date.now() + 9 * 60 * 60 * 1000);
@@ -55,17 +53,15 @@ function unavailable(base: MarketIndicator, generatedAt: string): MarketIndicato
 
 export async function getMorningMarketSnapshot(): Promise<MorningMarketSnapshot> {
   const generatedAt = kstNow();
-  const [fredResult, domesticIndexResults, supplementalResults, providerResults] = await Promise.all([
+  const [fredResult, yahooMarketResults, providerResults] = await Promise.all([
     Promise.allSettled([fetchFredSeriesBatch(liveIds)]),
-    Promise.allSettled(domesticIndexIds.map(async (id) => ({ id, ...(await fetchYahooIndexSeries(id)) }))),
-    Promise.allSettled(supplementalIds.map(async (id) => ({ id, ...(await fetchTwelveDataSeries(id)) }))),
+    Promise.allSettled(yahooMarketIds.map(async (id) => ({ id, ...(await fetchYahooMarketSeries(id)) }))),
     Promise.allSettled([fetchEcosUsdKrw(), fetchDartDisclosures()]),
   ]);
   const [ecosResult, dartResult] = providerResults;
   const live = new Map<string, { seriesId: string; points: Awaited<ReturnType<typeof fetchFredSeriesBatch>>["data"][number]["points"] }>();
   const errors: DataCollectionError[] = [];
-  const domesticIndexes = new Map<string, { symbol: string; points: Awaited<ReturnType<typeof fetchYahooIndexSeries>>["points"] }>();
-  const supplemental = new Map<string, { symbol: string; points: Awaited<ReturnType<typeof fetchTwelveDataSeries>>["points"] }>();
+  const yahooMarkets = new Map<string, { symbol: string; points: Awaited<ReturnType<typeof fetchYahooMarketSeries>>["points"] }>();
 
   const fredBatch = fredResult[0];
   if (fredBatch.status === "fulfilled") {
@@ -76,15 +72,10 @@ export async function getMorningMarketSnapshot(): Promise<MorningMarketSnapshot>
   } else {
     errors.push({ provider: "FRED:batch", message: fredBatch.reason instanceof Error ? fredBatch.reason.message : "알 수 없는 수집 오류", occurredAt: generatedAt });
   }
-  domesticIndexResults.forEach((result, index) => {
-    const id = domesticIndexIds[index];
-    if (result.status === "fulfilled") domesticIndexes.set(id, result.value);
+  yahooMarketResults.forEach((result, index) => {
+    const id = yahooMarketIds[index];
+    if (result.status === "fulfilled") yahooMarkets.set(id, result.value);
     else errors.push({ provider: `YahooFinance:${id}`, message: result.reason instanceof Error ? result.reason.message : "알 수 없는 수집 오류", occurredAt: generatedAt });
-  });
-  supplementalResults.forEach((result, index) => {
-    const id = supplementalIds[index];
-    if (result.status === "fulfilled") supplemental.set(id, result.value);
-    else errors.push({ provider: `TwelveData:${id}`, message: result.reason instanceof Error ? result.reason.message : "알 수 없는 수집 오류", occurredAt: generatedAt });
   });
   if (ecosResult.status === "rejected" && process.env.ECOS_API_KEY) {
     errors.push({ provider: "ECOS:usdkrw", message: ecosResult.reason instanceof Error ? ecosResult.reason.message : "알 수 없는 수집 오류", occurredAt: generatedAt });
@@ -99,10 +90,8 @@ export async function getMorningMarketSnapshot(): Promise<MorningMarketSnapshot>
     }
     const data = live.get(base.id);
     if (data) return applyFredSeries(base, data.seriesId, data.points);
-    const domesticIndex = domesticIndexes.get(base.id);
-    if (domesticIndex) return applyYahooIndexSeries(base, domesticIndex.symbol, domesticIndex.points);
-    const extra = supplemental.get(base.id);
-    if (extra) return applyTwelveDataSeries(base, extra.symbol, extra.points);
+    const yahooMarket = yahooMarkets.get(base.id);
+    if (yahooMarket) return applyYahooMarketSeries(base, yahooMarket.symbol, yahooMarket.points);
     return unavailable(base, generatedAt);
   });
 

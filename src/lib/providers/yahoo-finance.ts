@@ -4,6 +4,8 @@ import { applyFredSeries } from "./fred";
 const symbols: Record<string, string> = {
   kospi: "^KS11",
   kosdaq: "^KQ11",
+  gold: "GC=F",
+  copper: "HG=F",
 };
 
 interface YahooChartResponse {
@@ -18,7 +20,7 @@ interface YahooChartResponse {
   };
 }
 
-export async function fetchYahooIndexSeries(
+export async function fetchYahooMarketSeries(
   indicatorId: string,
 ): Promise<{ symbol: string; points: TimeSeriesPoint[] }> {
   const symbol = symbols[indicatorId];
@@ -53,7 +55,7 @@ export async function fetchYahooIndexSeries(
   return { symbol, points };
 }
 
-export function applyYahooIndexSeries(
+export function applyYahooMarketSeries(
   base: MarketIndicator,
   symbol: string,
   points: TimeSeriesPoint[],
